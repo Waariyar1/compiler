@@ -1,0 +1,46 @@
+// ... (The HTML structure and other JS code remains the same)
+
+    <script>
+        // --- API Configuration ---
+        // 🔑 CHANGE THIS URL to point to your new PHP proxy file
+        const COMPILER_API_URL = "./execute.php"; 
+        // The key variable is completely REMOVED from the client-side code!
+        
+        // Map of supported languages and their corresponding Piston versions.
+// ... (LANG_VERSION_MAP, DOM Elements, Templates remain the same)
+
+        // --- Main Execution Function ---
+        async function executeCode() {
+            // ... (Input validation and UI setup logic remains the same)
+            // ...
+
+            // 2. Prepare payload for the PHP proxy server
+            const payload = {
+                language: language,
+                version: version,
+                files: [{ content: code }],
+                stdin: "",
+                args: []
+            };
+
+            // 3. Send request to your PHP proxy (execute.php)
+            try {
+                const response = await fetch(COMPILER_API_URL, { // Points to execute.php
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                // ... (The rest of the result handling logic remains the same)
+                // ...
+            } catch (e) {
+                // ...
+            } finally {
+                // ...
+            }
+        }
+
+// ... (renderResult and DOMContentLoaded functions remain the same)
+    </script>
+</body>
+</html>

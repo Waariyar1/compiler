@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Downverse Code Compiler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+            margin: 0;
+            padding: 0;
+        }
+        /* Custom scrollbar for aesthetics */
+        textarea::-webkit-scrollbar, #output-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-thumb, #output-content::-webkit-scrollbar-thumb {
+            background-color: #4a5568;
+            border-radius: 4px;
+        }
+        .code-area {
+            font-family: monospace;
+            min-height: 400px;
+        }
+        .compiler-card {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-100 mb-2">Code Compiler</h1>
+            <p class="text-gray-400">Run and debug your code instantly on <a href="https://code.downverse.in" class="text-purple-400 hover:text-purple-300 transition" target="_blank">code.downverse.in</a></p>
+        </header>
+
+        <div class="compiler-card bg-[#161b22] rounded-xl overflow-hidden">
+            <div class="p-4 border-b border-gray-700 flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                <div class="flex-grow w-full sm:w-auto">
+                    <label for="language-select" class="sr-only">Select Language</label>
+                    <select id="language-select" class="w-full bg-gray-800 text-gray-200 border border-gray-600 rounded-lg py-2 px-3 focus:ring-purple-500 focus:border-purple-500 transition shadow-md">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript (Node.js)</option>
+                        <option value="php" selected>PHP</option>
+                        <option value="java">Java</option>
+                        <option value="cpp">C++</option>
+                        <option value="c">C</option>
+                        <option value="go">Go</option>
+                        <option value="rust">Rust</option>
+                    </select>
+                </div>
+                
+                <button id="run-button" class="w-full sm:w-auto px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-200 ease-in-out shadow-lg transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-purple-500 focus:ring-opacity-50 flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.26a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Run Code
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2">
+                <div class="p-4 border-b lg:border-r border-gray-700">
+                    <label for="code-editor" class="text-sm font-medium text-gray-400 mb-2 block">Source Code</label>
+                    <textarea id="code-editor" class="code-area w-full bg-[#0d1117] text-gray-200 p-3 rounded-lg border border-gray-800 focus:border-purple-500 focus:ring-purple-500 transition resize-none shadow-inner" placeholder="Enter your code here..."></textarea>
+                </div>
+                
+                <div class="p-4">
+                    <label class="text-sm font-medium text-gray-400 mb-2 block">Output Console</label>
+                    <div id="output-area" class="code-area w-full bg-black text-white p-3 rounded-lg border border-gray-800 overflow-y-auto shadow-inner text-sm">
+                        <div id="output-content" class="whitespace-pre-wrap">
+                            Click 'Run Code' to see the result.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="status-message" class="p-4 bg-gray-900 border-t border-gray-700 text-sm hidden">
+                </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- API Configuration ---
+        // 🔑 IMPORTANT: Replace this with the URL of your Render Service 🔑
+        const COMPILER_API_URL = "YOUR_RENDER_SERVICE_URL/api/execute"; 
+        
+        // Map of supported languages and their corresponding Piston versions.
+        const LANG_VERSION_MAP = {
+            "python": "3.10.0",
+            "javascript": "18.15.0",
+            "php": "8.1.10",
+            "java": "openjdk-20.0.1",
+            "cpp": "10.2.0",
+            "c": "10.2.0",
+            "go": "1.20.1",
+            "rust": "1.68.2"
+        };
+        
+        // --- DOM Elements ---
+        const codeEditor = document.getElementById('code-editor');
+        const languageSelect = document.getElementById('language-select');
+        const runButton = document.getElementById('run-button');
+        const outputContent = document.getElementById('output-content');
+        const statusMessage = document.getElementById('status-message');
+
+        // --- Event Listener for Run Button ---
+        runButton.addEventListener('click', executeCode);
+        
+        // --- Event Listener to load language template ---
+        languageSelect.addEventListener('change', loadTemplate);
+
+        // --- Template Logic ---
+        const templates = {
+            python: "print('Hello World from Python!')",
+            javascript: "console.log('Hello World from Node.js!');",
+            php: "<?php\necho \"Hello World from PHP!\";\n?>",
+            java: "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World from Java!\");\n    }\n}",
+            cpp: "#include <iostream>\n\nint main() {\n    std::cout << \"Hello World from C++!\" << std::endl;\n    return 0;\n}",
+            c: "#include <stdio.h>\n\nint main() {\n    printf(\"Hello World from C!\\n\");\n    return 0;\n}",
+            go: "package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello World from Go!\")\n}",
+            rust: "fn main() {\n    println!(\"Hello World from Rust!\");\n}"
+        };
+
+        function loadTemplate() {
+            const selectedLang = languageSelect.value;
+            codeEditor.value = templates[selectedLang] || '// Enter your code here...';
+        }
+
+
+        // --- Main Execution Function ---
+        async function executeCode() {
+            const language = languageSelect.value;
+            const code = codeEditor.value;
+            const version = LANG_VERSION_MAP[language];
+
+            if (!version) {
+                renderResult('error', '', `Unsupported language: ${language}`);
+                return;
+            }
+
+            if (!code.trim()) {
+                renderResult('error', '', 'Code editor is empty.');
+                return;
+            }
+
+            // 1. Prepare UI for loading state
+            runButton.disabled = true;
+            runButton.textContent = 'Running...';
+            outputContent.textContent = 'Processing request...';
+            statusMessage.classList.add('hidden');
+
+            // 2. Prepare payload for the Render proxy server
+            const payload = {
+                language: language,
+                version: version,
+                files: [{ content: code }],
+                stdin: "", // Not implemented in UI yet, but passed
+                args: []
+            };
+
+            // 3. Send request to your RENDER PROXY server
+            try {
+                const response = await fetch(COMPILER_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const apiResult = await response.json();
+                
+                if (response.ok && apiResult && apiResult.run) {
+                    // Success or Runtime Error (from Piston's response)
+                    const stdout = apiResult.run.stdout || '';
+                    const stderr = apiResult.run.stderr || '';
+
+                    if (stderr) {
+                        renderResult('error', stderr, 'Compilation/Runtime Error');
+                    } else {
+                        renderResult('success', stdout, 'Execution Successful');
+                    }
+                } else if (response.status >= 400) {
+                    // Handle errors from your proxy server or critical Piston errors (4xx/5xx)
+                    const errorDetail = apiResult.error || apiResult.message || 'Unknown server error.';
+                    renderResult('fatal', errorDetail, `Server Error: HTTP ${response.status}`);
+                } else {
+                    renderResult('fatal', 'Invalid or unexpected response structure from the server.', 'API Response Error');
+                }
+
+            } catch (e) {
+                console.error("Fetch failed:", e);
+                renderResult('fatal', `Could not connect to the compiler service. Make sure your Render service URL is correct.`, `Network Error: ${e.message}`);
+            } finally {
+                // Restore button state
+                runButton.disabled = false;
+                runButton.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.26a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>Run Code';
+            }
+        }
+
+        // --- Result Rendering ---
+        function renderResult(type, content, title) {
+            let bgColor = '';
+            let textColor = '';
+            
+            statusMessage.classList.remove('hidden');
+
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-green-800';
+                    textColor = 'text-green-300';
+                    outputContent.textContent = content || '[Program finished with no output]';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-800';
+                    textColor = 'text-red-300';
+                    outputContent.textContent = content || '[Error details unavailable]';
+                    break;
+                case 'fatal':
+                    bgColor = 'bg-yellow-800';
+                    textColor = 'text-yellow-300';
+                    outputContent.textContent = `FATAL ERROR: ${content}`;
+                    break;
+                default:
+                    bgColor = 'bg-gray-800';
+                    textColor = 'text-gray-400';
+                    outputContent.textContent = content;
+            }
+
+            statusMessage.className = `p-4 border-t border-gray-700 text-sm ${bgColor} ${textColor}`;
+            statusMessage.textContent = title;
+        }
+
+        // Initialize the editor with the default language template (PHP is selected by default)
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTemplate();
+        });
+
+    </script>
+</body>
+</html>
